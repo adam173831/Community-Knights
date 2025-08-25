@@ -16,3 +16,5 @@ src/main/resources/application-local.properties
 .settings/
 # App data
 uploads/
+!.env.example
+!.env.sample
