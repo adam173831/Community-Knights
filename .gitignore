@@ -9,3 +9,10 @@ src/main/frontend/generated/
 .env
 .env.*
 src/main/resources/application-local.properties
+
+# IDE
+.project
+.classpath
+.settings/
+# App data
+uploads/
