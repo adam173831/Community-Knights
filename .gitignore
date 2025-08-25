@@ -1,0 +1,11 @@
+/target/
+node_modules/
+frontend/generated/
+src/main/frontend/generated/
+.idea/
+.vscode/
+*.iml
+.DS_Store
+.env
+.env.*
+src/main/resources/application-local.properties
