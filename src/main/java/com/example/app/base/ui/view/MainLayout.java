@@ -4,6 +4,7 @@ import com.example.app.shared.domain.Person;
 import com.example.app.shared.domain.UserPreferences;
 import com.example.app.taskmanagement.service.FileStorageService;
 import com.example.app.taskmanagement.service.SettingsService;
+import com.example.app.taskmanagement.ui.util.ThemeUtil;
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.applayout.AppLayout;
@@ -26,6 +27,9 @@ import com.vaadin.flow.server.menu.MenuConfiguration;
 import com.vaadin.flow.server.menu.MenuEntry;
 import jakarta.annotation.security.PermitAll;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.ByteArrayInputStream;
 import java.nio.file.Files;
 
@@ -35,6 +39,8 @@ import static com.vaadin.flow.theme.lumo.LumoUtility.*;
 @PermitAll
 public final class MainLayout extends AppLayout {
 
+    private static final Logger logger = LoggerFactory.getLogger(MainLayout.class);
+
     private final SettingsService settingsService;
     private final FileStorageService fileStorageService;
 
@@ -42,6 +48,7 @@ public final class MainLayout extends AppLayout {
         this.settingsService = settingsService;
         this.fileStorageService = fileStorageService;
         setPrimarySection(Section.DRAWER);
+        applyThemeFromPreferences();
         addToDrawer(createHeader(), new Scroller(createSideNav()), createProfileMenu());
     }
 
@@ -60,16 +67,16 @@ public final class MainLayout extends AppLayout {
     private SideNav createSideNav() {
         var nav = new SideNav();
         nav.addClassNames(Margin.Horizontal.MEDIUM);
-        
+
         // Add default menu entries from MenuConfiguration
         MenuConfiguration.getMenuEntries().forEach(entry -> nav.addItem(createSideNavItem(entry)));
-        
+
         // Add Settings as a dedicated menu item for easy access
         Person currentUser = (Person) VaadinSession.getCurrent().getAttribute(Person.class);
         if (currentUser != null) {
             nav.addItem(new SideNavItem("Settings", "settings", VaadinIcon.COG.create()));
         }
-        
+
         return nav;
     }
 
@@ -83,73 +90,87 @@ public final class MainLayout extends AppLayout {
 
     private Component createProfileMenu() {
         Person loggedInUser = (Person) VaadinSession.getCurrent().getAttribute(Person.class);
-        
+
         if (loggedInUser == null) {
             // Show login prompt if not logged in
             return createLoginPrompt();
         }
 
-        String displayName = loggedInUser.getName() != null ? loggedInUser.getName() : loggedInUser.getUsername();
-        
+        String displayName = loggedInUser.getName() != null
+                ? loggedInUser.getName()
+                : loggedInUser.getUsername();
+
         var avatar = new Avatar(displayName);
         avatar.addThemeVariants(AvatarVariant.LUMO_SMALL);
         avatar.addClassNames(Margin.Right.SMALL);
-        
+
         // Try to load profile image if available
         try {
             UserPreferences preferences = settingsService.getUserPreferences(loggedInUser);
-            if (preferences.getProfileImagePath() != null && 
+            if (preferences.getProfileImagePath() != null &&
                 fileStorageService.fileExists(preferences.getProfileImagePath())) {
-                
+
                 StreamResource imageResource = new StreamResource(
-                    "profile-image", 
+                    "profile-image",
                     () -> {
                         try {
-                            return Files.newInputStream(fileStorageService.getFilePath(preferences.getProfileImagePath()));
+                            return Files.newInputStream(
+                                fileStorageService.getFilePath(preferences.getProfileImagePath())
+                            );
                         } catch (Exception e) {
                             return new ByteArrayInputStream(new byte[0]);
                         }
                     }
                 );
                 avatar.setImageResource(imageResource);
-            } else {
-                // Fallback to color-based avatar
-                avatar.setColorIndex(Math.abs(displayName.hashCode()) % 7);
+                avatar.setName(null);
             }
-        } catch (Exception e) {
-            // Fallback to color-based avatar
-            avatar.setColorIndex(Math.abs(displayName.hashCode()) % 7);
+        } catch (Exception ignored) {
         }
 
         var profileMenu = new MenuBar();
         profileMenu.addThemeVariants(MenuBarVariant.LUMO_TERTIARY_INLINE);
-        profileMenu.addClassNames(Margin.MEDIUM);
+        profileMenu.addClassNames(Margin.MEDIUM, Padding.MEDIUM);
 
         var profileMenuItem = profileMenu.addItem(avatar);
-        profileMenuItem.add(displayName);
-        
+
         // Profile Information Section
         profileMenuItem.getSubMenu().addItem(createProfileHeader(loggedInUser)).setEnabled(false);
         profileMenuItem.getSubMenu().add(new Hr());
-        
+
         // Action Items
         profileMenuItem.getSubMenu().addItem("View Profile", e -> UI.getCurrent().navigate("profile"))
             .add(VaadinIcon.USER.create());
-            
+
         profileMenuItem.getSubMenu().addItem("Settings", e -> UI.getCurrent().navigate("settings"))
             .add(VaadinIcon.COG.create());
-            
+
         profileMenuItem.getSubMenu().addItem("Account Settings", e -> UI.getCurrent().navigate("account-settings"))
             .add(VaadinIcon.TOOLS.create());
-            
+
         profileMenuItem.getSubMenu().add(new Hr());
-        
+
         // Logout
         var logoutItem = profileMenuItem.getSubMenu().addItem("Logout", e -> logout());
         logoutItem.add(VaadinIcon.SIGN_OUT.create());
         logoutItem.getStyle().set("color", "var(--lumo-error-text-color)");
 
         return profileMenu;
+    }
+
+    private void applyThemeFromPreferences() {
+        Person currentUser = (Person) VaadinSession.getCurrent().getAttribute(Person.class);
+        if (currentUser == null) {
+            return;
+        }
+
+        try {
+            UserPreferences preferences = settingsService.getUserPreferences(currentUser);
+            ThemeUtil.applyTheme(UI.getCurrent(), preferences.getTheme());
+            ThemeUtil.applyColorScheme(UI.getCurrent(), preferences.getColorScheme());
+        } catch (Exception e) {
+            logger.debug("Unable to apply saved theme for user {}", currentUser.getUsername(), e);
+        }
     }
 
     private Component createProfileHeader(Person user) {
@@ -177,34 +198,28 @@ public final class MainLayout extends AppLayout {
         emailSpan.addClassNames(TextColor.SECONDARY, FontSize.SMALL);
         emailSpan.getStyle().set("display", "block");
 
-        // Phone (if available)
-        if (user.getPhoneNumber() != null && !user.getPhoneNumber().trim().isEmpty()) {
-            Span phoneSpan = new Span(user.getPhoneNumber());
-            phoneSpan.addClassNames(TextColor.SECONDARY, FontSize.SMALL);
-            phoneSpan.getStyle().set("display", "block");
-            profileInfo.add(nameSpan, usernameSpan, emailSpan, phoneSpan);
-        } else {
-            profileInfo.add(nameSpan, usernameSpan, emailSpan);
-        }
-
+        profileInfo.add(nameSpan, usernameSpan, emailSpan);
         return profileInfo;
     }
 
     private Component createLoginPrompt() {
-        var loginPrompt = new MenuBar();
-        loginPrompt.addThemeVariants(MenuBarVariant.LUMO_TERTIARY_INLINE);
-        loginPrompt.addClassNames(Margin.MEDIUM);
+        // Fallback UI when not logged in
+        var loginWrapper = new Div();
+        loginWrapper.addClassNames(Padding.MEDIUM);
 
-        var loginItem = loginPrompt.addItem("Login");
-        loginItem.add(VaadinIcon.SIGN_IN.create());
-        loginItem.addClickListener(e -> UI.getCurrent().navigate("login"));
-        
-        return loginPrompt;
+        var prompt = new Span("Not signed in");
+        prompt.addClassNames(FontWeight.SEMIBOLD, FontSize.SMALL);
+
+        var loginButton = VaadinIcon.SIGN_IN.create();
+        loginButton.addClickListener(e -> UI.getCurrent().navigate("login"));
+
+        loginWrapper.add(prompt, loginButton);
+        return loginWrapper;
     }
 
     private void logout() {
         VaadinSession.getCurrent().getSession().invalidate();
-        UI.getCurrent().navigate("");
-        UI.getCurrent().getPage().reload();
+        VaadinSession.getCurrent().close();
+        UI.getCurrent().navigate("login");
     }
 }

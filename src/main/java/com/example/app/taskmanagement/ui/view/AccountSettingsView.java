@@ -4,7 +4,6 @@ import com.example.app.base.ui.component.ViewToolbar;
 import com.example.app.base.ui.view.MainLayout;
 import com.example.app.shared.domain.Person;
 import com.example.app.taskmanagement.service.LoginService;
-import org.springframework.security.crypto.bcrypt.BCrypt;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
@@ -24,6 +23,8 @@ import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 import com.vaadin.flow.server.VaadinSession;
 import jakarta.annotation.security.PermitAll;
+
+import java.util.Optional;
 
 @Route(value = "account-settings", layout = MainLayout.class)
 @PageTitle("Account Settings - My App")
@@ -54,95 +55,67 @@ public class AccountSettingsView extends Main implements BeforeEnterObserver {
     }
 
     private void createUI() {
-        setSizeFull();
         addClassName("account-settings-view");
 
-        VerticalLayout content = new VerticalLayout();
-        content.setMaxWidth("600px");
-        content.setMargin(true);
-        content.setSpacing(true);
+        ViewToolbar toolbar = new ViewToolbar("Account Settings");
 
-        // Change Password Section
-        Div changePasswordSection = createChangePasswordSection();
-        
-        // Account Information Section
-        Div accountInfoSection = createAccountInfoSection();
+        // Section: Password Change
+        VerticalLayout passwordSection = new VerticalLayout();
+        passwordSection.setPadding(true);
+        passwordSection.setSpacing(true);
 
-        content.add(changePasswordSection, accountInfoSection);
-        
-        add(new ViewToolbar("Account Settings"));
-        add(content);
-    }
+        H3 passwordHeader = new H3("Change Password");
+        Paragraph passwordDescription = new Paragraph(
+            "Update your password. Make sure it's something secure and only you know."
+        );
 
-    private Div createChangePasswordSection() {
-        Div section = new Div();
-        section.addClassName("change-password-section");
-        section.getStyle()
-            .set("background", "var(--lumo-contrast-5pct)")
-            .set("border-radius", "var(--lumo-border-radius-l)")
-            .set("padding", "var(--lumo-space-l)")
-            .set("margin-bottom", "var(--lumo-space-l)");
-
-        H3 header = new H3("Change Password");
-        header.getStyle().set("margin-top", "0");
-
-        Paragraph description = new Paragraph("Enter your current password and choose a new one. Your new password should be at least 8 characters long with uppercase, lowercase, and numbers.");
-        description.getStyle().set("color", "var(--lumo-secondary-text-color)");
-
-        FormLayout form = new FormLayout();
-        
         currentPasswordField = new PasswordField("Current Password");
-        currentPasswordField.setRequired(true);
-        currentPasswordField.setWidth("100%");
-
         newPasswordField = new PasswordField("New Password");
-        newPasswordField.setRequired(true);
-        newPasswordField.setWidth("100%");
-        newPasswordField.setHelperText("At least 8 characters with uppercase, lowercase, and numbers");
-
         confirmPasswordField = new PasswordField("Confirm New Password");
-        confirmPasswordField.setRequired(true);
-        confirmPasswordField.setWidth("100%");
 
-        // Real-time password matching validation
-        confirmPasswordField.addValueChangeListener(e -> {
-            if (!confirmPasswordField.getValue().isEmpty()) {
-                boolean matches = newPasswordField.getValue().equals(confirmPasswordField.getValue());
-                confirmPasswordField.setInvalid(!matches);
-                if (!matches) {
-                    confirmPasswordField.setErrorMessage("Passwords do not match");
-                }
-            }
-        });
-
-        form.add(currentPasswordField, newPasswordField, confirmPasswordField);
-
-        // Buttons
         changePasswordButton = new Button("Change Password", e -> changePassword());
         changePasswordButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
 
         cancelButton = new Button("Cancel", e -> clearPasswordForm());
+        cancelButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
 
-        HorizontalLayout buttonLayout = new HorizontalLayout(changePasswordButton, cancelButton);
-        buttonLayout.setSpacing(true);
+        HorizontalLayout buttonRow = new HorizontalLayout(changePasswordButton, cancelButton);
 
-        section.add(header, description, form, buttonLayout);
-        return section;
+        FormLayout passwordForm = new FormLayout(
+            currentPasswordField,
+            newPasswordField,
+            confirmPasswordField
+        );
+        passwordForm.setResponsiveSteps(
+            new FormLayout.ResponsiveStep("0", 1),
+            new FormLayout.ResponsiveStep("500px", 2)
+        );
+        passwordForm.setColspan(currentPasswordField, 2);
+        passwordForm.setColspan(newPasswordField, 1);
+        passwordForm.setColspan(confirmPasswordField, 1);
+
+        passwordSection.add(
+            passwordHeader,
+            passwordDescription,
+            passwordForm,
+            buttonRow
+        );
+
+        // Section: Account management links
+        VerticalLayout linksSection = buildLinksSection();
+
+        add(toolbar, passwordSection, linksSection);
     }
 
-    private Div createAccountInfoSection() {
-        Div section = new Div();
-        section.addClassName("account-info-section");
-        section.getStyle()
-            .set("background", "var(--lumo-contrast-5pct)")
-            .set("border-radius", "var(--lumo-border-radius-l)")
-            .set("padding", "var(--lumo-space-l)");
+    private VerticalLayout buildLinksSection() {
+        VerticalLayout section = new VerticalLayout();
+        section.setPadding(true);
+        section.setSpacing(false);
 
-        H3 header = new H3("Account Information");
-        header.getStyle().set("margin-top", "0");
+        H3 header = new H3("More Settings");
+        Paragraph p = new Paragraph("Manage other aspects of your account.");
 
-        // Quick links to other account-related pages
-        VerticalLayout links = new VerticalLayout();
+        HorizontalLayout links = new HorizontalLayout();
         links.setSpacing(true);
         links.setPadding(false);
 
@@ -150,29 +123,45 @@ public class AccountSettingsView extends Main implements BeforeEnterObserver {
         profileButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
         profileButton.setWidth("200px");
 
-        Button securityButton = new Button("Security Settings", e -> 
-            showInfoNotification("Security settings coming soon!"));
+        Button securityButton = new Button("Security Settings",
+            e -> showInfoNotification("Security settings coming soon!")
+        );
         securityButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
         securityButton.setWidth("200px");
-        securityButton.setEnabled(false); // Disabled for now
+        securityButton.setEnabled(false);
 
-        Button privacyButton = new Button("Privacy Settings", e -> 
-            showInfoNotification("Privacy settings coming soon!"));
+        Button privacyButton = new Button("Privacy Settings",
+            e -> showInfoNotification("Privacy settings coming soon!")
+        );
         privacyButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
         privacyButton.setWidth("200px");
-        privacyButton.setEnabled(false); // Disabled for now
+        privacyButton.setEnabled(false);
 
         links.add(profileButton, securityButton, privacyButton);
 
-        section.add(header, links);
+        section.add(header, p, links);
         return section;
     }
 
     private void changePassword() {
+        changePasswordButton.setEnabled(false);
         try {
             String currentPassword = currentPasswordField.getValue();
             String newPassword = newPasswordField.getValue();
             String confirmPassword = confirmPasswordField.getValue();
+
+            if (currentUser == null || currentUser.getId() == null) {
+                showErrorNotification("Your session has expired. Please log in again.");
+                return;
+            }
+
+            Optional<Person> refreshedUser = loginService.findById(currentUser.getId());
+            if (refreshedUser.isEmpty()) {
+                showErrorNotification("Unable to load your account details. Please log in again.");
+                return;
+            }
+
+            currentUser = refreshedUser.get();
 
             // Validate current password
             if (currentPassword.isEmpty()) {
@@ -182,7 +171,7 @@ public class AccountSettingsView extends Main implements BeforeEnterObserver {
             }
 
             // Verify current password
-            if (!BCrypt.checkpw(currentPassword, currentUser.getPassword())) {
+            if (!loginService.passwordMatches(currentUser, currentPassword)) {
                 showErrorNotification("Current password is incorrect");
                 currentPasswordField.focus();
                 return;
@@ -209,14 +198,14 @@ public class AccountSettingsView extends Main implements BeforeEnterObserver {
             }
 
             // Check if new password is different from current
-            if (BCrypt.checkpw(newPassword, currentUser.getPassword())) {
+            if (loginService.passwordMatches(currentUser, newPassword)) {
                 showErrorNotification("New password must be different from current password");
                 newPasswordField.focus();
                 return;
             }
 
             // Hash and save new password
-            String hashedPassword = BCrypt.hashpw(newPassword, BCrypt.gensalt());
+            String hashedPassword = loginService.encodePassword(newPassword);
             currentUser.setPassword(hashedPassword);
             loginService.save(currentUser);
 
@@ -229,6 +218,8 @@ public class AccountSettingsView extends Main implements BeforeEnterObserver {
 
         } catch (Exception e) {
             showErrorNotification("Failed to change password: " + e.getMessage());
+        } finally {
+            changePasswordButton.setEnabled(true);
         }
     }
 
@@ -240,11 +231,9 @@ public class AccountSettingsView extends Main implements BeforeEnterObserver {
     }
 
     private boolean isPasswordStrong(String password) {
-        // Check for at least one uppercase, one lowercase, and one digit
         boolean hasUpper = password.chars().anyMatch(Character::isUpperCase);
         boolean hasLower = password.chars().anyMatch(Character::isLowerCase);
         boolean hasDigit = password.chars().anyMatch(Character::isDigit);
-        
         return hasUpper && hasLower && hasDigit;
     }
 

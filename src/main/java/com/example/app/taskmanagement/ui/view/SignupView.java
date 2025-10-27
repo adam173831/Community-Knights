@@ -1,8 +1,8 @@
 package com.example.app.taskmanagement.ui.view;
 
 import com.example.app.shared.domain.Person;
+import com.example.app.taskmanagement.service.LoginService;
 import com.example.app.taskmanagement.service.SignupService;
-import org.springframework.security.crypto.bcrypt.BCrypt;  // ADD THIS IMPORT
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.formlayout.FormLayout;
@@ -21,9 +21,11 @@ import java.time.LocalDate;
 public class SignupView extends VerticalLayout {
 
     private final SignupService signupService;
+    private final LoginService loginService;
 
-    public SignupView(SignupService signupService) {
+    public SignupView(SignupService signupService, LoginService loginService) {
         this.signupService = signupService;
+        this.loginService = loginService;
 
         setSizeFull();
         setAlignItems(Alignment.CENTER);
@@ -39,6 +41,12 @@ public class SignupView extends VerticalLayout {
         PasswordField confirmPasswordField = new PasswordField("Confirm Password");
 
         Button signupButton = new Button("Sign Up", e -> {
+            String fullName = nameField.getValue() != null ? nameField.getValue().trim() : "";
+            if (fullName.isEmpty()) {
+                Notification.show("Full name is required");
+                return;
+            }
+
             if (!passwordField.getValue().equals(confirmPasswordField.getValue())) {
                 Notification.show("Passwords do not match");
                 return;
@@ -46,18 +54,17 @@ public class SignupView extends VerticalLayout {
 
             try {
                 Person newAdmin = new Person();
-                newAdmin.setName(nameField.getValue());
+                newAdmin.setName(fullName);
                 newAdmin.setEmail(emailField.getValue());
                 newAdmin.setPhoneNumber(phoneField.getValue());
                 newAdmin.setUsername(usernameField.getValue());
-                
-                // CRITICAL FIX: HASH THE PASSWORD BEFORE SAVING
-                String hashedPassword = BCrypt.hashpw(passwordField.getValue(), BCrypt.gensalt());
-                newAdmin.setPassword(hashedPassword);
-                
-                newAdmin.setBirthday(LocalDate.of(2000, 1, 1)); // default
+
+                // Hash password before saving
+                newAdmin.setPassword(loginService.encodePassword(passwordField.getValue()));
+
+                newAdmin.setBirthday(LocalDate.of(2000, 1, 1));
                 newAdmin.setStartDate(LocalDate.now());
-                newAdmin.setAdmin(true); // mark as admin
+                newAdmin.setAdmin(true); // first account is admin
 
                 signupService.save(newAdmin);
                 Notification.show("Account created successfully!");
@@ -68,8 +75,12 @@ public class SignupView extends VerticalLayout {
         });
 
         FormLayout form = new FormLayout(
-                nameField, emailField, phoneField, usernameField,
-                passwordField, confirmPasswordField
+            nameField,
+            emailField,
+            phoneField,
+            usernameField,
+            passwordField,
+            confirmPasswordField
         );
         form.setWidth("400px");
 
