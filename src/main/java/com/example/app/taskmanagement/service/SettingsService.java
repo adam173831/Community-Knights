@@ -100,4 +100,32 @@ public class SettingsService {
             logger.error("Error deleting preferences for user ID: {}", userId, e);
         }
     }
+    public void updatePersonalInfo(Person user, UserPreferences prefs) {
+        if (user == null || prefs == null) {
+            throw new IllegalArgumentException("User and preferences cannot be null");
+        }
+
+        UserPreferences current = getUserPreferences(user);
+
+        current.setBio(prefs.getBio());
+        current.setProfileImagePath(prefs.getProfileImagePath());
+        current.setEnablePushNotifications(prefs.isEnablePushNotifications());
+        current.setEnableDesktopAlerts(prefs.isEnableDesktopAlerts());
+        current.setNotifyTaskUpdates(prefs.isNotifyTaskUpdates());
+        current.setNotifyUserMentions(prefs.isNotifyUserMentions());
+        current.setNotifySystemAlerts(prefs.isNotifySystemAlerts());
+        current.setTheme(prefs.getTheme());
+        current.setColorScheme(prefs.getColorScheme());
+        current.setEnableAnimations(prefs.isEnableAnimations());
+        current.setExportFormat(prefs.getExportFormat());
+        current.setIncludePersonalData(prefs.isIncludePersonalData());
+        current.setIncludeTaskData(prefs.isIncludeTaskData());
+        current.setAutoBackupEnabled(prefs.isAutoBackupEnabled());
+        current.setBackupFrequency(prefs.getBackupFrequency());
+        current.setImportFormat(prefs.getImportFormat());
+        current.setAutoSyncEnabled(prefs.isAutoSyncEnabled());
+        current.setSyncFrequency(prefs.getSyncFrequency());
+
+        savePreferences(current);
+    }
 }

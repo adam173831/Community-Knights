@@ -1,7 +1,7 @@
 package com.example.app.taskmanagement.service;
 
 import com.example.app.shared.domain.Person;
-import com.example.app.shared.repository.PersonRepository;
+import com.example.app.shared.domain.PersonRepository;
 import com.vaadin.flow.server.VaadinSession;
 import jakarta.transaction.Transactional;
 import org.slf4j.Logger;
@@ -14,6 +14,7 @@ import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.Base64;
 import java.util.Optional;
+import java.time.LocalDateTime;
 
 @Service
 @Transactional
@@ -46,12 +47,15 @@ public class LoginService {
 
         Person user = userOpt.get();
         if (passwordMatches(user, password)) {
-            VaadinSession.getCurrent().setAttribute(Person.class, user);
+            if (VaadinSession.getCurrent() != null) {
+                VaadinSession.getCurrent().setAttribute(Person.class, user);
+            }
             return Optional.of(user);
         }
 
         return Optional.empty();
     }
+
 
     /**
      * Find user by email.
@@ -250,5 +254,17 @@ public class LoginService {
         byte[] bytes = new byte[32];
         secureRandom.nextBytes(bytes);
         return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+    }
+    
+    @Transactional
+    public int cleanupExpiredTokens() {
+        try {
+            int cleared = personRepository.clearExpiredResetTokens(LocalDateTime.now());
+            logger.info("Expired password reset tokens cleared: {}", cleared);
+            return cleared;
+        } catch (Exception e) {
+            logger.error("Failed to clear expired password reset tokens", e);
+            return 0;
+        }
     }
 }

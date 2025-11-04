@@ -3,6 +3,7 @@ package com.example.app.taskmanagement.service;
 import org.springframework.scheduling.TaskScheduler;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -27,7 +28,7 @@ public class EmailJobService {
         String id = UUID.randomUUID().toString();
         ScheduledFuture<?> f = scheduler.scheduleAtFixedRate(
                 () -> mailService.sendSimpleEmail(to, "Test", "Hello"),
-                10_000L // milliseconds
+                Duration.ofSeconds(10)
         );
         jobs.put(id, f);
         return id;

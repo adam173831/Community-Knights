@@ -31,10 +31,13 @@ public class LoginView extends VerticalLayout implements BeforeEnterObserver {
         getStyle().set("background-color", "#f5f5f5");
 
         loginForm.setI18n(createCustomI18n());
+        // If you’re using Spring Security’s VaadinLogin, keep the action.
+        // Otherwise, it’s fine to leave; your listener handles auth.
         loginForm.setAction("login");
         loginForm.addLoginListener(event -> authenticate(event.getUsername(), event.getPassword()));
 
-        Button forgotPasswordButton = new Button("FORGOT PASSWORD?", e -> UI.getCurrent().navigate("forgot-password"));
+        Button forgotPasswordButton = new Button("FORGOT PASSWORD?",
+            e -> UI.getCurrent().navigate("forgot-password"));
         forgotPasswordButton.getStyle()
             .set("background-color", "#8B0000")
             .set("color", "white")
@@ -59,21 +62,31 @@ public class LoginView extends VerticalLayout implements BeforeEnterObserver {
         add(loginBox);
     }
 
+    /**
+     * Authenticate the user and route to "home" on success.
+     * Handles Optional<Person> correctly and guards against null VaadinSession.
+     */
     private void authenticate(String username, String password) {
         loginForm.setError(false);
-        Person person = loginService.authenticate(username, password);
 
-        if (person != null) {
-            VaadinSession.getCurrent().setAttribute(Person.class, person);
+        loginService.authenticate(username, password).ifPresentOrElse(person -> {
+            // LoginService already stores the user in session (if a session exists),
+            // but this guard ensures no NPE if called off the UI thread.
+            if (VaadinSession.getCurrent() != null) {
+                VaadinSession.getCurrent().setAttribute(Person.class, person);
+            }
             UI.getCurrent().navigate("home");
-        } else {
+        }, () -> {
+            // Invalid credentials: show error state on the LoginForm
             loginForm.setError(true);
-        }
+        });
     }
 
     @Override
     public void beforeEnter(BeforeEnterEvent event) {
-        if (VaadinSession.getCurrent().getAttribute(Person.class) != null) {
+        // Guard VaadinSession to avoid NPEs in non-UI contexts
+        VaadinSession session = VaadinSession.getCurrent();
+        if (session != null && session.getAttribute(Person.class) != null) {
             event.forwardTo("home");
         }
     }
